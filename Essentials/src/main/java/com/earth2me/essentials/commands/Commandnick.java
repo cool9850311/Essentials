@@ -94,7 +94,7 @@ public class Commandnick extends EssentialsLoopCommand {
     }
 
     private int getNickLength(final String nick) {
-        return ess.getSettings().ignoreColorsInMaxLength() ? ChatColor.stripColor(nick).length() : nick.length();
+        return ess.getSettings().ignoreColorsInMaxLength() ? ChatColor.stripColor(nick).replaceAll("&#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})","").length() : nick.length();
     }
 
     private boolean nickInUse(final User target, final String nick) {
