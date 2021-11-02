@@ -57,12 +57,13 @@ import net.ess3.nms.refl.providers.ReflSpawnerBlockProvider;
 import net.ess3.nms.refl.providers.ReflSyncCommandsProvider;
 import net.ess3.provider.ContainerProvider;
 import net.ess3.provider.FormattedCommandAliasProvider;
+import net.ess3.provider.ItemUnbreakableProvider;
 import net.ess3.provider.KnownCommandsProvider;
 import net.ess3.provider.MaterialTagProvider;
 import net.ess3.provider.PersistentDataProvider;
 import net.ess3.provider.PotionMetaProvider;
-import net.ess3.provider.SerializationProvider;
 import net.ess3.provider.ProviderListener;
+import net.ess3.provider.SerializationProvider;
 import net.ess3.provider.ServerStateProvider;
 import net.ess3.provider.SpawnEggProvider;
 import net.ess3.provider.SpawnerBlockProvider;
@@ -73,8 +74,10 @@ import net.ess3.provider.providers.BlockMetaSpawnerItemProvider;
 import net.ess3.provider.providers.BukkitMaterialTagProvider;
 import net.ess3.provider.providers.BukkitSpawnerBlockProvider;
 import net.ess3.provider.providers.FlatSpawnEggProvider;
+import net.ess3.provider.providers.LegacyItemUnbreakableProvider;
 import net.ess3.provider.providers.LegacyPotionMetaProvider;
 import net.ess3.provider.providers.LegacySpawnEggProvider;
+import net.ess3.provider.providers.ModernItemUnbreakableProvider;
 import net.ess3.provider.providers.ModernPersistentDataProvider;
 import net.ess3.provider.providers.PaperContainerProvider;
 import net.ess3.provider.providers.PaperKnownCommandsProvider;
@@ -103,7 +106,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.world.WorldLoadEvent;
-import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.plugin.InvalidDescriptionException;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginDescriptionFile;
@@ -167,6 +169,7 @@ public class Essentials extends JavaPlugin implements net.ess3.api.IEssentials {
     private transient SyncCommandsProvider syncCommandsProvider;
     private transient PersistentDataProvider persistentDataProvider;
     private transient ReflOnlineModeProvider onlineModeProvider;
+    private transient ItemUnbreakableProvider unbreakableProvider;
     private transient Kits kits;
     private transient RandomTeleport randomTeleport;
     private transient UpdateChecker updateChecker;
@@ -409,6 +412,12 @@ public class Essentials extends JavaPlugin implements net.ess3.api.IEssentials {
             }
 
             onlineModeProvider = new ReflOnlineModeProvider();
+
+            if (VersionUtil.getServerBukkitVersion().isHigherThanOrEqualTo(VersionUtil.v1_11_2_R01)) {
+                unbreakableProvider = new ModernItemUnbreakableProvider();
+            } else {
+                unbreakableProvider = new LegacyItemUnbreakableProvider();
+            }
 
             execTimer.mark("Init(Providers)");
             reload();
@@ -771,14 +780,15 @@ public class Essentials extends JavaPlugin implements net.ess3.api.IEssentials {
             } catch (final NoChargeException | QuietAbortException ex) {
                 return true;
             } catch (final NotEnoughArgumentsException ex) {
-                sender.sendMessage(tl("commandHelpLine1", commandLabel));
-                sender.sendMessage(tl("commandHelpLine2", command.getDescription()));
-                sender.sendMessage(tl("commandHelpLine3"));
                 if (getSettings().isVerboseCommandUsages() && !cmd.getUsageStrings().isEmpty()) {
+                    sender.sendMessage(tl("commandHelpLine1", commandLabel));
+                    sender.sendMessage(tl("commandHelpLine2", command.getDescription()));
+                    sender.sendMessage(tl("commandHelpLine3"));
                     for (Map.Entry<String, String> usage : cmd.getUsageStrings().entrySet()) {
                         sender.sendMessage(tl("commandHelpLineUsage", usage.getKey().replace("<command>", commandLabel), usage.getValue()));
                     }
                 } else {
+                    sender.sendMessage(command.getDescription());
                     sender.sendMessage(command.getUsage().replace("<command>", commandLabel));
                 }
                 if (!ex.getMessage().isEmpty()) {
@@ -1270,6 +1280,11 @@ public class Essentials extends JavaPlugin implements net.ess3.api.IEssentials {
     }
 
     @Override
+    public ItemUnbreakableProvider getItemUnbreakableProvider() {
+        return unbreakableProvider;
+    }
+
+    @Override
     public PluginCommand getPluginCommand(final String cmd) {
         return this.getCommand(cmd);
     }
@@ -1302,25 +1317,6 @@ public class Essentials extends JavaPlugin implements net.ess3.api.IEssentials {
         @EventHandler(priority = EventPriority.LOW)
         public void onWorldLoad(final WorldLoadEvent event) {
             PermissionsDefaults.registerBackDefaultFor(event.getWorld());
-
-            ess.getJails().reloadConfig();
-            ess.getWarps().reloadConfig();
-            for (final IConf iConf : ((Essentials) ess).confList) {
-                if (iConf instanceof IEssentialsModule) {
-                    iConf.reloadConfig();
-                }
-            }
-        }
-
-        @EventHandler(priority = EventPriority.LOW)
-        public void onWorldUnload(final WorldUnloadEvent event) {
-            ess.getJails().reloadConfig();
-            ess.getWarps().reloadConfig();
-            for (final IConf iConf : ((Essentials) ess).confList) {
-                if (iConf instanceof IEssentialsModule) {
-                    iConf.reloadConfig();
-                }
-            }
         }
 
         @Override
